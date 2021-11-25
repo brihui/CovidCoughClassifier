@@ -85,13 +85,13 @@ def create_resnet_weights(spectro_path):
     os.chdir(root_directory)
 
     classes = ['Not Covid', 'Covid']
-    plt.imshow(train_imgs[0])
-    plt.xlabel(classes[int(train_labels[0])])
-    plt.show()
+    # plt.imshow(train_imgs[0])
+    # plt.xlabel(classes[int(train_labels[0])])
+    # plt.show()
 
-    lenet_5(train_set, train_label, test_set, test_label)
+    # lenet_5(train_set, train_label, test_set, test_label)
     # resnet_weights(train_set, test_set, train_label, test_label)
-    # resnet_prediction(train_set, test_set, train_label, test_label)
+    resnet_prediction(train_set, test_set, train_label, test_label)
 
 
 def lenet_5(train_set, train_label, test_set, test_label):
@@ -186,28 +186,28 @@ def resnet_weights(train_set, test_set, train_label, test_label):
 
 
 def resnet_prediction(test_set, train_set, train_label, test_label):
-    print(os.getcwd())
-    print(os.getcwd() + "/coswara_cnn_resnet50.h5")
-    path = os.getcwd() + "/coswara_cnn_resnet50.h5"
-    restnet = ResNet50(include_top=False, weights=path, input_shape=(500, 1400, 3))
+    path = os.getcwd() + "/coswara_cnn_restnet50.h5"
+    print(path)
+    restnet = ResNet50(include_top=False, input_shape=(250, 700, 3))
+    restnet.load_weights(path, by_name=True)
     output = restnet.layers[-1].output
     output = layers.Flatten()(output)
     restnet = Model(restnet.input, outputs=output)
     for layer in restnet.layers:
         layer.trainable = False
 
-    restnet.summary()
+    # restnet.summary()
 
     model = Sequential()
     model.add(restnet)
-    model.add(Dense(512, activation='relu', input_dim=(500, 1400, 3)))
+    model.add(Dense(512, activation='relu', input_dim=(250, 700, 3)))
     model.add(Dropout(0.3))
     model.add(Dense(512, activation='relu'))
     model.add(Dropout(0.3))
     model.add(Dense(1, activation='sigmoid'))
     model.compile(loss='binary_crossentropy',
                   optimizer=optimizers.RMSprop(learning_rate=2e-5),
-                  metrics=['accuracy'])
+                  metrics=['binary_accuracy'])
 
     print(model.predict(np.asarray([test_set[69]])))
     print(model.predict(np.asarray([test_set[17]])))
