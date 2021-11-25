@@ -1,14 +1,14 @@
 import os
 import numpy as np
-from tensorflow.keras import layers, models
+from tensorflow.keras import layers, models, optimizers
 import tensorflow as tf
-from keras.preprocessing.image import ImageDataGenerator, load_img, img_to_array, array_to_img
 from keras.applications.resnet import ResNet50
-from keras.models import Model
-import keras
+from tensorflow.keras.models import Model
+from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout, InputLayer
+from tensorflow.keras.models import Sequential
+from tensorflow.keras import optimizers
 from matplotlib import pyplot as plt
 from matplotlib import image
-from PIL import Image
 from sklearn.model_selection import train_test_split
 
 
@@ -58,12 +58,12 @@ def create_resnet_weights(spectro_path):
     train_set, test_set, train_label, test_label = train_test_split(train_imgs_scaled, train_labels, test_size=0.3)
     train_label = np.asarray(train_label)
     test_label = np.asarray(test_label)
-    print(train_label[69])
+    # print(train_label[69])
     print(test_label[17])
-    print(test_label[2])
-    print(test_label[8])
-    print(test_label[11])
-    print(test_label[28])
+    # print(test_label[2])
+    # print(test_label[8])
+    # print(test_label[11])
+    # print(test_label[28])
 
     print(train_set.shape)
     print(test_set.shape)
@@ -73,7 +73,8 @@ def create_resnet_weights(spectro_path):
     train_label = train_label.reshape(-1,1)
     test_label = test_label.reshape(-1,1)
 
-    lenet_5(train_set, train_label, test_set, test_label)
+    # lenet_5(train_set, train_label, test_set, test_label)
+    resnet_weights(train_set, test_set, train_label, test_label)
 
     classes = ['Not Covid', 'Covid']
     # plt.imshow(train_imgs[0])
@@ -141,6 +142,36 @@ def custom_cnn(train_set, train_label, test_set, test_label):
     print(custom.predict(np.asarray([test_set[8]])))
     print(custom.predict(np.asarray([test_set[11]])))
     print(custom.predict(np.asarray([test_set[28]])))
+
+
+def resnet_weights(train_set, test_set, train_label, test_label):
+    print('In resnet weights')
+    restnet = ResNet50(include_top=False, weights=None, input_shape=(500, 1400, 3))
+    output = restnet.layers[-1].output
+    output = layers.Flatten()(output)
+    restnet = Model(restnet.input, outputs=output)
+    for layer in restnet.layers:
+        layer.trainable = False
+
+    restnet.summary()
+
+    model = Sequential()
+    model.add(restnet)
+    model.add(Dense(512, activation='relu', input_dim=(500, 1400, 3)))
+    model.add(Dropout(0.3))
+    model.add(Dense(512, activation='relu'))
+    model.add(Dropout(0.3))
+    model.add(Dense(1, activation='sigmoid'))
+    model.compile(loss='binary_crossentropy',
+                  optimizer=optimizers.RMSprop(learning_rate=2e-5),
+                  metrics=['accuracy'])
+    model.summary()
+
+    history = model.fit(train_set, train_label, epochs=1)
+
+    model.save(os.getcwd() + '/coswara_cnn_restnet50.h5')
+
+    print(model.predict(np.asarray([test_set[17]])))
 
 
 def main():
