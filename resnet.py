@@ -5,6 +5,7 @@ import tensorflow as tf
 from keras.applications.resnet import ResNet50
 from tensorflow.keras.models import Model
 from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout, InputLayer
+from skimage.transform import resize
 from tensorflow.keras.models import Sequential
 from tensorflow.keras import optimizers
 from matplotlib import pyplot as plt
@@ -12,11 +13,17 @@ from matplotlib import image
 from sklearn.model_selection import train_test_split
 
 
+IMG_WIDTH = 1400
+IMG_HEIGHT = 500
+IMG_DIM = (IMG_HEIGHT, IMG_WIDTH)
+
+
 def create_resnet_weights(spectro_path):
     """
     THis function creates the resnet weights given the path to the spectrograms
     :param spectro_path: String of absolute path to the spectrogram folder
     """
+    root_directory = os.getcwd()
 
     # Get list of healthy and list of covid spectrograms
     os.chdir(spectro_path)
@@ -26,13 +33,15 @@ def create_resnet_weights(spectro_path):
     # train_imgs = [image.imread(img) for img in train_spectrograms if img != ".DS_Store"]
     count = 0
     train_imgs = []
+    HALF_IMG_DIM = tuple(int(ti / 2) for ti in IMG_DIM)
     for img in train_spectrograms:
         if img == ".DS_Store":
             pass
         else:
             image_data = image.imread(img)
+            image_data = resize(image_data, output_shape=HALF_IMG_DIM)
             train_imgs.append(image_data)
-            count +=1
+            count += 1
         if count > 999:
             break
     train_imgs = np.array(train_imgs)
@@ -73,18 +82,22 @@ def create_resnet_weights(spectro_path):
     train_label = train_label.reshape(-1,1)
     test_label = test_label.reshape(-1,1)
 
-    lenet_5(train_set, train_label, test_set, test_label)
+    os.chdir(root_directory)
 
     classes = ['Not Covid', 'Covid']
-    # plt.imshow(train_imgs[0])
-    # plt.xlabel(classes[int(train_labels[0])])
-    # plt.show()
+    plt.imshow(train_imgs[0])
+    plt.xlabel(classes[int(train_labels[0])])
+    plt.show()
+
+    lenet_5(train_set, train_label, test_set, test_label)
+    # resnet_weights(train_set, test_set, train_label, test_label)
+    # resnet_prediction(train_set, test_set, train_label, test_label)
 
 
 def lenet_5(train_set, train_label, test_set, test_label):
     lenet_5 = models.Sequential([
         # Not grayscale like lenet-5
-        layers.Conv2D(6, (5, 5), strides=1, activation='relu', input_shape=(500, 1400, 3)),
+        layers.Conv2D(6, (5, 5), strides=1, activation='relu', input_shape=(250, 700, 3)),
         layers.AvgPool2D((2, 2), strides=2),
         layers.Conv2D(16, (5, 5), strides=1, activation='relu'),
         layers.AvgPool2D((2, 2), strides=2),
@@ -144,7 +157,6 @@ def custom_cnn(train_set, train_label, test_set, test_label):
 
 
 def resnet_weights(train_set, test_set, train_label, test_label):
-    print('In resnet weights')
     restnet = ResNet50(include_top=False, weights=None, input_shape=(500, 1400, 3))
     output = restnet.layers[-1].output
     output = layers.Flatten()(output)
@@ -171,6 +183,38 @@ def resnet_weights(train_set, test_set, train_label, test_label):
     model.save(os.getcwd() + '/coswara_cnn_restnet50.h5')
 
     print(model.predict(np.asarray([test_set[17]])))
+
+
+def resnet_prediction(test_set, train_set, train_label, test_label):
+    print(os.getcwd())
+    print(os.getcwd() + "/coswara_cnn_resnet50.h5")
+    path = os.getcwd() + "/coswara_cnn_resnet50.h5"
+    restnet = ResNet50(include_top=False, weights=path, input_shape=(500, 1400, 3))
+    output = restnet.layers[-1].output
+    output = layers.Flatten()(output)
+    restnet = Model(restnet.input, outputs=output)
+    for layer in restnet.layers:
+        layer.trainable = False
+
+    restnet.summary()
+
+    model = Sequential()
+    model.add(restnet)
+    model.add(Dense(512, activation='relu', input_dim=(500, 1400, 3)))
+    model.add(Dropout(0.3))
+    model.add(Dense(512, activation='relu'))
+    model.add(Dropout(0.3))
+    model.add(Dense(1, activation='sigmoid'))
+    model.compile(loss='binary_crossentropy',
+                  optimizer=optimizers.RMSprop(learning_rate=2e-5),
+                  metrics=['accuracy'])
+
+    print(model.predict(np.asarray([test_set[69]])))
+    print(model.predict(np.asarray([test_set[17]])))
+    print(model.predict(np.asarray([test_set[2]])))
+    print(model.predict(np.asarray([test_set[8]])))
+    print(model.predict(np.asarray([test_set[11]])))
+    print(model.predict(np.asarray([test_set[28]])))
 
 
 def main():
