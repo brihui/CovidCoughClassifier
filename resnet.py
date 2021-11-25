@@ -59,7 +59,7 @@ def create_resnet_weights(spectro_path):
     train_label = np.asarray(train_label)
     test_label = np.asarray(test_label)
     print(train_label)
-    print(test_label[17])
+    print(test_label[1])
     print(test_label[2])
     print(test_label[8])
     print(test_label[11])
@@ -99,7 +99,7 @@ def lenet_5(train_set, train_label, test_set, test_label):
     # Sparse because we are using index rather than flat matrix for class representation
     lenet_5.compile(optimizer='adam', loss=tf.keras.losses.binary_crossentropy, metrics=['accuracy'])
 
-    lenet_5.fit(train_set, train_label, epochs=1)
+    lenet_5.fit(train_set, train_label, epochs=1, batch_size=1)
 
     print('-' * 100)
 
@@ -127,7 +127,7 @@ def custom_cnn(train_set, train_label, test_set, test_label):
         layers.Dense(128, activation='relu'),
         layers.Dense(128, activation='relu'),
         # Softmax probability function
-        layers.Dense(10, activation='softmax')
+        layers.Dense(1, activation='softmax')
     ])
 
     custom.compile(optimizer='adam', loss=tf.keras.losses.binary_crossentropy, metrics=['accuracy'])
@@ -136,10 +136,22 @@ def custom_cnn(train_set, train_label, test_set, test_label):
 
     print('-' * 100)
 
-    custom.predict(test_set[69])
+    pred = custom.predict(test_set)
 
 
 def main():
+    gpus = tf.config.list_physical_devices('GPU')
+    if gpus:
+        try:
+            for gpu in gpus:
+                tf.config.experimental.set_memory_growth(gpu, True)
+            tf.config.set_visible_devices(gpus[0], 'GPU')
+            logical_gpus = tf.config.list_logical_devices('GPU')
+            print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPU")
+        except RuntimeError as e:
+            # Visible devices must be set before GPUs have been initialized
+            print(e)
+
     create_resnet_weights(os.getcwd() + "/spectrograms/coswara")
 
 
