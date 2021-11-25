@@ -58,12 +58,12 @@ def create_resnet_weights(spectro_path):
     train_set, test_set, train_label, test_label = train_test_split(train_imgs_scaled, train_labels, test_size=0.3)
     train_label = np.asarray(train_label)
     test_label = np.asarray(test_label)
-    # print(train_label[69])
+    print(train_label[69])
     print(test_label[17])
-    # print(test_label[2])
-    # print(test_label[8])
-    # print(test_label[11])
-    # print(test_label[28])
+    print(test_label[2])
+    print(test_label[8])
+    print(test_label[11])
+    print(test_label[28])
 
     print(train_set.shape)
     print(test_set.shape)
@@ -73,8 +73,7 @@ def create_resnet_weights(spectro_path):
     train_label = train_label.reshape(-1,1)
     test_label = test_label.reshape(-1,1)
 
-    # lenet_5(train_set, train_label, test_set, test_label)
-    resnet_weights(train_set, test_set, train_label, test_label)
+    lenet_5(train_set, train_label, test_set, test_label)
 
     classes = ['Not Covid', 'Covid']
     # plt.imshow(train_imgs[0])
@@ -175,6 +174,18 @@ def resnet_weights(train_set, test_set, train_label, test_label):
 
 
 def main():
+    # gpus = tf.config.list_physical_devices('GPU')
+    # if gpus:
+    #     try:
+    #         for gpu in gpus:
+    #             tf.config.experimental.set_memory_growth(gpu, True)
+    #         tf.config.set_visible_devices(gpus[0], 'GPU')
+    #         logical_gpus = tf.config.list_logical_devices('GPU')
+    #         print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPU")
+    #     except RuntimeError as e:
+    #         # Visible devices must be set before GPUs have been initialized
+    #         print(e)
+
     create_resnet_weights(os.getcwd() + "/spectrograms/coswara")
 
 

@@ -25,17 +25,17 @@ def coughvid_to_spectro():
         x, sr = librosa.load(coughvid_path+cough_wavs[index], sr=22050)
         # print(type(x), type(sr))  # <class 'numpy.ndarray'> <class 'int'>
 
-        plt.figure(figsize=(14, 5))
+        # plt.figure(figsize=(14, 5))
         librosa.display.waveplot(x, sr=sr)
-        plt.show()
+        # plt.show()
 
         # Convert the audio waveform to spectrogram
         X = librosa.stft(x)
         Xdb = librosa.amplitude_to_db(abs(X))
-        plt.figure(figsize=(14, 5))
+        # plt.figure(figsize=(14, 5))
         librosa.display.specshow(Xdb, sr=sr, x_axis='time', y_axis='hz')
-        plt.colorbar()
-        plt.show()
+        # plt.colorbar()
+        # plt.show()
 
 
 def get_coughvid_wavs():
@@ -108,9 +108,9 @@ def get_coswara_spectrograms():
                                 # Convert the audio waveform to spectrogram
                                 X = librosa.stft(x)
                                 Xdb = librosa.amplitude_to_db(abs(X))
-                                plt.figure(figsize=(14, 5))
+                                # plt.figure(figsize=(14, 5))
                                 librosa.display.specshow(Xdb, sr=sr, x_axis='time', y_axis='hz')
-                                plt.colorbar()
+                                # plt.colorbar()
                                 # plt.show()
 
                                 # Determine covid status
@@ -159,8 +159,11 @@ def get_coughvid_spectrograms():
     corrupted_list = []
 
     file_name = 1
+    i = 0
 
     for file in os.listdir():
+        i += 1
+        print(i)
         # If file is the json file, add to the json list
         if file.endswith(".json"):
             json_list.append(file)
@@ -173,16 +176,16 @@ def get_coughvid_spectrograms():
 
                 # print(type(x), type(sr))  # <class 'numpy.ndarray'> <class 'int'>
 
-                plt.figure(figsize=(14, 5))
+                # plt.figure(figsize=(14, 5))
                 librosa.display.waveplot(x, sr=sr)
                 # plt.show()
 
                 # Convert the audio waveform to spectrogram
                 X = librosa.stft(x)
                 Xdb = librosa.amplitude_to_db(abs(X))
-                plt.figure(figsize=(14, 5))
+                # plt.figure(figsize=(14, 5))
                 librosa.display.specshow(Xdb, sr=sr, x_axis='time', y_axis='hz')
-                plt.colorbar()
+                # plt.colorbar()
 
                 # Determine covid status
                 with open(file.split('.wav')[0] + ".json", "r") as f:
@@ -191,9 +194,11 @@ def get_coughvid_spectrograms():
 
                 if covid_status == "COVID-19":
                     plt.savefig(spectrogram_directory + "/1_" + file_name.__str__() + ".jpg")
+                    plt.close()
                     file_name += 1
                 else:
                     plt.savefig(spectrogram_directory + "/0_" + file_name.__str__() + ".jpg")
+                    plt.close()
                     file_name += 1
                 # plt.show()
             except ValueError:
