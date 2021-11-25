@@ -58,7 +58,7 @@ def create_resnet_weights(spectro_path):
     train_set, test_set, train_label, test_label = train_test_split(train_imgs_scaled, train_labels, test_size=0.3)
     train_label = np.asarray(train_label)
     test_label = np.asarray(test_label)
-    print(train_label)
+    print(train_label[69])
     print(test_label[17])
     print(test_label[2])
     print(test_label[8])
@@ -74,7 +74,6 @@ def create_resnet_weights(spectro_path):
     test_label = test_label.reshape(-1,1)
 
     lenet_5(train_set, train_label, test_set, test_label)
-
 
     classes = ['Not Covid', 'Covid']
     # plt.imshow(train_imgs[0])
@@ -127,7 +126,7 @@ def custom_cnn(train_set, train_label, test_set, test_label):
         layers.Dense(128, activation='relu'),
         layers.Dense(128, activation='relu'),
         # Softmax probability function
-        layers.Dense(10, activation='softmax')
+        layers.Dense(1, activation='softmax')
     ])
 
     custom.compile(optimizer='adam', loss=tf.keras.losses.binary_crossentropy, metrics=['accuracy'])
@@ -136,7 +135,12 @@ def custom_cnn(train_set, train_label, test_set, test_label):
 
     print('-' * 100)
 
-    custom.predict(test_set[69])
+    print(custom.predict(np.asarray([test_set[69]])))
+    print(custom.predict(np.asarray([test_set[17]])))
+    print(custom.predict(np.asarray([test_set[2]])))
+    print(custom.predict(np.asarray([test_set[8]])))
+    print(custom.predict(np.asarray([test_set[11]])))
+    print(custom.predict(np.asarray([test_set[28]])))
 
 
 def main():
