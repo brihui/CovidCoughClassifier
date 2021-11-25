@@ -67,7 +67,6 @@ def create_resnet_weights(spectro_path):
     train_set, test_set, train_label, test_label = train_test_split(train_imgs_scaled, train_labels, test_size=0.3)
     train_label = np.asarray(train_label)
     test_label = np.asarray(test_label)
-    print(train_label[69])
     print(test_label[17])
     print(test_label[2])
     print(test_label[8])
@@ -84,17 +83,27 @@ def create_resnet_weights(spectro_path):
 
     os.chdir(root_directory)
 
+    # Load a positive spectrogram
+    os.chdir(os.getcwd() + "/spectrograms/coughvid")
+    covid_spectro = image.imread('1_901.jpg')
+    covid_spectro_resized = resize(covid_spectro, output_shape=HALF_IMG_DIM)
+    covid_spectro_resized = np.asarray(covid_spectro_resized)
+    print(covid_spectro_resized.shape)
+    print(np.asarray(covid_spectro_resized).shape)
+
+    os.chdir(root_directory)
+
     classes = ['Not Covid', 'Covid']
     # plt.imshow(train_imgs[0])
     # plt.xlabel(classes[int(train_labels[0])])
     # plt.show()
 
-    # lenet_5(train_set, train_label, test_set, test_label)
+    lenet_5(train_set, train_label, test_set, test_label, covid_spectro_resized)
     # resnet_weights(train_set, test_set, train_label, test_label)
-    resnet_prediction(train_set, test_set, train_label, test_label)
+    # resnet_prediction(train_set, test_set, train_label, test_label)
 
 
-def lenet_5(train_set, train_label, test_set, test_label):
+def lenet_5(train_set, train_label, test_set, test_label, covid_spectro):
     lenet_5 = models.Sequential([
         # Not grayscale like lenet-5
         layers.Conv2D(6, (5, 5), strides=1, activation='relu', input_shape=(250, 700, 3)),
@@ -109,13 +118,14 @@ def lenet_5(train_set, train_label, test_set, test_label):
     ])
 
     # Sparse because we are using index rather than flat matrix for class representation
-    lenet_5.compile(optimizer='adam', loss=tf.keras.losses.binary_crossentropy, metrics=['accuracy'])
+    lenet_5.compile(optimizer='adam', loss=tf.keras.losses.binary_crossentropy, metrics=['binary_accuracy'])
 
     lenet_5.fit(train_set, train_label, epochs=1)
 
     print('-' * 100)
 
     # lenet_5.evaluate(test_set, test_label)
+    print(lenet_5.predict(np.asarray([covid_spectro])))
     print(lenet_5.predict(np.asarray([test_set[17]])))
     print(lenet_5.predict(np.asarray([test_set[2]])))
     print(lenet_5.predict(np.asarray([test_set[8]])))
@@ -148,7 +158,6 @@ def custom_cnn(train_set, train_label, test_set, test_label):
 
     print('-' * 100)
 
-    print(custom.predict(np.asarray([test_set[69]])))
     print(custom.predict(np.asarray([test_set[17]])))
     print(custom.predict(np.asarray([test_set[2]])))
     print(custom.predict(np.asarray([test_set[8]])))
@@ -175,7 +184,7 @@ def resnet_weights(train_set, test_set, train_label, test_label):
     model.add(Dense(1, activation='sigmoid'))
     model.compile(loss='binary_crossentropy',
                   optimizer=optimizers.RMSprop(learning_rate=2e-5),
-                  metrics=['accuracy'])
+                  metrics=['binary_accuracy'])
     model.summary()
 
     history = model.fit(train_set, train_label, epochs=1)
@@ -209,7 +218,6 @@ def resnet_prediction(test_set, train_set, train_label, test_label):
                   optimizer=optimizers.RMSprop(learning_rate=2e-5),
                   metrics=['binary_accuracy'])
 
-    print(model.predict(np.asarray([test_set[69]])))
     print(model.predict(np.asarray([test_set[17]])))
     print(model.predict(np.asarray([test_set[2]])))
     print(model.predict(np.asarray([test_set[8]])))
