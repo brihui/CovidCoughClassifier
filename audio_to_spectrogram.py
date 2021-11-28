@@ -102,8 +102,8 @@ def get_coswara_spectrograms():
                                 # print(type(x), type(sr))  # <class 'numpy.ndarray'> <class 'int'>
 
                                 # plt.figure(figsize=(14, 5))
-                                # librosa.display.waveplot(x, sr=sr)
-                                # plt.show()
+                                librosa.display.waveplot(x, sr=sr)
+                                plt.show()
 
                                 # Convert the audio waveform to spectrogram
                                 X = librosa.stft(x)
@@ -120,10 +120,10 @@ def get_coswara_spectrograms():
 
                                 # If covid is positive, store as 1, else store 0
                                 if covid_status.startswith('positive'):
-                                    plt.savefig(spectrogram_directory + "/1_" + save_file_name.__str__() + ".jpg")
+                                    # plt.savefig(spectrogram_directory + "/1_" + save_file_name.__str__() + ".jpg")
                                     save_file_name += 1
                                 else:
-                                    plt.savefig(spectrogram_directory + "/0_" + save_file_name.__str__() + ".jpg")
+                                    # plt.savefig(spectrogram_directory + "/0_" + save_file_name.__str__() + ".jpg")
                                     save_file_name += 1
 
                             except ValueError:
