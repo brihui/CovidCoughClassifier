@@ -4,7 +4,7 @@ from tensorflow.keras import layers, models, optimizers, datasets
 import tensorflow as tf
 from keras.applications.resnet import ResNet50
 from tensorflow.keras.models import Model
-from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout, InputLayer
+from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropout, InputLayer, BatchNormalization
 from skimage.transform import resize
 from tensorflow.keras.models import Sequential
 from tensorflow.keras import optimizers
@@ -19,9 +19,10 @@ IMG_HEIGHT = 500
 IMG_DIM = (IMG_HEIGHT, IMG_WIDTH)
 
 
-def create_resnet_weights(spectro_path):
+def create_test_val(spectro_path):
     """
-    THis function creates the resnet weights given the path to the spectrograms
+    This function reads in the spectrograms given the path to them and creates
+    a train/test set to call the appropriate function with.
     :param spectro_path: String of absolute path to the spectrogram folder
     """
     root_directory = os.getcwd()
@@ -92,7 +93,7 @@ def create_resnet_weights(spectro_path):
     train_imgs_scaled = train_imgs.astype('float32')
     train_imgs_scaled /= 255
 
-    train_set, test_set, train_label, test_label = train_test_split(train_imgs_scaled, train_labels, test_size=0.3)
+    train_set, test_set, train_label, test_label = train_test_split(train_imgs_scaled, train_labels, test_size=0.3, stratify=train_labels)
     train_label = np.asarray(train_label)
     test_label = np.asarray(test_label)
     print(test_label[17])
@@ -112,27 +113,28 @@ def create_resnet_weights(spectro_path):
     os.chdir(root_directory)
 
     # Load a positive spectrogram
-    os.chdir(os.getcwd() + "/spectrograms/coughvid")
-    covid_spectro = image.imread('1_922.jpg')
-    covid_spectro_resized = resize(covid_spectro, output_shape=HALF_IMG_DIM)
-    covid_spectro_resized = np.asarray(covid_spectro_resized)
-    print(covid_spectro_resized.shape)
-    print(np.asarray(covid_spectro_resized).shape)
+    # os.chdir(os.getcwd() + "/spectrograms/coughvid")
+    # covid_spectro = image.imread('1_922.jpg')
+    # covid_spectro_resized = resize(covid_spectro, output_shape=HALF_IMG_DIM)
+    # covid_spectro_resized = np.asarray(covid_spectro_resized)
+    # print(covid_spectro_resized.shape)
+    # print(np.asarray(covid_spectro_resized).shape)
 
     os.chdir(root_directory)
 
-    classes = ['Not Covid', 'Covid']
+    # classes = ['Not Covid', 'Covid']
+    # plt.figure(2)
     # plt.imshow(train_imgs[0])
     # plt.xlabel(classes[int(train_labels[0])])
     # plt.show()
 
-    # lenet_5(train_set, train_label, test_set, test_label, covid_spectro_resized)
-    # custom_cnn(train_set, train_label, test_set, test_label, covid_spectro_resized)
-    # resnet_weights(train_set, test_set, train_label, test_label)
-    resnet_prediction(train_set, test_set, train_label, test_label)
+    # lenet_5(train_set, train_label, test_set, test_label)
+    # custom_cnn(train_set, train_label, test_set, test_label)
+    resnet_weights(train_set, test_set, train_label, test_label)
+    # resnet_prediction(train_set, test_set, train_label, test_label)
 
 
-def lenet_5(train_set, train_label, test_set, test_label, covid_spectro):
+def lenet_5(train_set, train_label, test_set, test_label):
     lenet_5 = models.Sequential([
         # Not grayscale like lenet-5
         layers.Conv2D(6, (5, 5), strides=1, activation='relu', input_shape=(250, 700, 3)),
@@ -154,7 +156,6 @@ def lenet_5(train_set, train_label, test_set, test_label, covid_spectro):
     print('-' * 100)
 
     # lenet_5.evaluate(test_set, test_label)
-    print(lenet_5.predict(np.asarray([covid_spectro])))
     print(lenet_5.predict(np.asarray([test_set[17]])))
     print(lenet_5.predict(np.asarray([test_set[2]])))
     print(lenet_5.predict(np.asarray([test_set[8]])))
@@ -162,32 +163,37 @@ def lenet_5(train_set, train_label, test_set, test_label, covid_spectro):
     print(lenet_5.predict(np.asarray([test_set[28]])))
 
 
-def custom_cnn(train_set, train_label, test_set, test_label, covid_spectro):
+def custom_cnn(train_set, train_label, test_set, test_label):
     custom = models.Sequential([
         # Repeated convolutional layers increase receptive field
-        layers.Conv2D(12, (4, 4), strides=1, activation='relu'),
-        layers.Conv2D(24, (4, 4), strides=1, activation='relu'),
-        # Down sampling with stride can be cheaper as you convolve + downsample at the same time
-        layers.Conv2D(48, (4, 4), strides=2, activation='relu'),
-        layers.Conv2D(192, (4, 4), strides=2, activation='relu'),
-        # Maxpool retains most prominent features
-        # layers.MaxPool2D((2, 2), strides=2),
-
+        layers.Conv2D(16, (3, 3), activation='relu', input_shape=(83, 233, 3)),
+        layers.Dropout(0.3),
+        layers.Conv2D(32, (3, 3), activation='relu'),
+        layers.Dropout(0.3),
+        layers.BatchNormalization(),
+        layers.MaxPool2D((2, 2)),
+        layers.Conv2D(64, (3, 3), activation='relu'),
+        layers.Dropout(0.3),
+        layers.Conv2D(256, (3, 3), activation='relu'),
+        layers.Dropout(0.3),
+        layers.BatchNormalization(),
+        layers.MaxPool2D((2, 2)),
         layers.Flatten(),
         # Multiple dense layers to refine classification voting
-        layers.Dense(128, activation='relu'),
+        layers.Dense(512, activation='relu'),
         layers.Dense(128, activation='relu'),
         # Softmax probability function
         layers.Dense(1, activation='sigmoid')
     ])
 
-    custom.compile(optimizer=optimizers.RMSprop(learning_rate=2e-5), loss=tf.keras.losses.binary_crossentropy, metrics=['binary_accuracy'])
+    custom.compile(optimizer=optimizers.RMSprop(learning_rate=0.0001), loss=tf.keras.losses.binary_crossentropy, metrics=['binary_accuracy'])
 
-    custom.fit(train_set, train_label, epochs=1)
+    custom.fit(train_set, train_label, epochs=10)
 
     print('-' * 100)
 
-    print(custom.predict(np.asarray([covid_spectro])))
+    custom.evaluate(test_set, test_label)
+
     print(custom.predict(np.asarray([test_set[17]])))
     print(custom.predict(np.asarray([test_set[2]])))
     print(custom.predict(np.asarray([test_set[8]])))
@@ -196,83 +202,73 @@ def custom_cnn(train_set, train_label, test_set, test_label, covid_spectro):
 
 
 def resnet_weights(train_set, test_set, train_label, test_label):
-    # restnet = ResNet50(include_top=False, weights=None, input_shape=(32, 32, 3))
-    # output = restnet.layers[-1].output
-    # output = layers.Flatten()(output)
-    # restnet = Model(restnet.input, outputs=output)
-    # for layer in restnet.layers:
-    #     layer.trainable = False
-    # restnet.summary()
+    resnet_model = Sequential()
 
-    base_model_2 = ResNet50(include_top=False, weights='imagenet', input_shape=(32, 32, 3), classes=10)
+    pretrained_model = ResNet50(include_top=False, input_shape=(125, 350, 3), weights='imagenet')
+    for layer in pretrained_model.layers:
+        layer.trainable = False
 
-    model_2 = Sequential()
-    # Add the Dense layers along with activation and batch normalization
-    model_2.add(base_model_2)
-    model_2.add(Flatten())
+    resnet_model.add(pretrained_model)
+    resnet_model.add(Flatten())
+    resnet_model.add(BatchNormalization())
+    resnet_model.add(Dense(256, activation='relu'))
+    resnet_model.add(Dropout(0.3))
+    resnet_model.add(BatchNormalization())
+    resnet_model.add(Dense(128, activation='relu'))
+    resnet_model.add(Dropout(0.3))
+    resnet_model.add(BatchNormalization())
+    resnet_model.add(Dense(64, activation='relu'))
+    resnet_model.add(Dropout(0.3))
+    resnet_model.add(BatchNormalization())
+    resnet_model.add(Dense(1, activation='sigmoid'))
 
-    # Add the Dense layers along with activation and batch normalization
-    model_2.add(Dense(4000, activation=('relu'), input_dim=512))
-    model_2.add(Dense(2000, activation=('relu')))
-    model_2.add(Dropout(.4))
-    model_2.add(Dense(1000, activation=('relu')))
-    model_2.add(Dropout(.3))  # Adding a dropout layer that will randomly drop 30% of the weights
-    model_2.add(Dense(500, activation=('relu')))
-    model_2.add(Dropout(.2))
-    model_2.add(Dense(10, activation=('softmax')))  # This is the classification layer
+    resnet_model.compile(optimizer=optimizers.RMSprop(learning_rate=0.00001), loss=tf.keras.losses.binary_crossentropy, metrics=['binary_accuracy'])
 
-    # model = Sequential()
-    # model.add(restnet)
-    #
-    # model.add(layers.Flatten())
-    #
-    # model.add(Dense(512, activation='relu'))
-    # model.add(Dense(512, activation='relu'))
-    # model.add(Dense(10, activation='softmax'))
-    # model.compile(loss='binary_crossentropy',
-    #               optimizer=optimizers.RMSprop(learning_rate=2e-5),
-    #               metrics=['binary_accuracy'])
-    model_2.compile(optimizer='adam', loss='sparse_categorical_crossentropy', metrics=['accuracy'])
-    model_2.summary()
+    resnet_model.summary()
 
-    model_2.fit(train_set, train_label, epochs=5)
+    print('-' * 100)
 
-    model_2.evaluate(test_set, test_label)
+    history = resnet_model.fit(train_set, train_label, epochs=10, validation_data=(test_set, test_label))
 
-    # model.save(os.getcwd() + '/coswara_cnn_model.h5')
+    resnet_model.save(os.getcwd() + '/coswara_resnet_model.h5')
 
-    # print(model.predict(np.asarray([test_set[17]])))
+    print(resnet_model.predict(np.asarray([test_set[17]])))
+    print(resnet_model.predict(np.asarray([test_set[2]])))
+    print(resnet_model.predict(np.asarray([test_set[8]])))
+    print(resnet_model.predict(np.asarray([test_set[11]])))
+    print(resnet_model.predict(np.asarray([test_set[28]])))
 
 
-def resnet_prediction(test_set, train_set, train_label, test_label):
-    path = os.getcwd() + "/coswara_cnn_restnet50.h5"
+def resnet_prediction(train_set, test_set, train_label, test_label):
+    path = os.getcwd() + "/coswara_cnn_model.h5"
     print(path)
-    restnet = ResNet50(include_top=False, input_shape=(250, 700, 3))
-    restnet.load_weights(path, by_name=True)
-    output = restnet.layers[-1].output
+    resnet = ResNet50(include_top=False, input_shape=(125, 350, 3))
+    resnet.load_weights(path, by_name=True)
+
+    output = resnet.layers[-1].output
     output = layers.Flatten()(output)
-    restnet = Model(restnet.input, outputs=output)
-    for layer in restnet.layers:
+    resnet = Model(resnet.input, outputs=output)
+    for layer in resnet.layers:
         layer.trainable = False
 
     # restnet.summary()
 
     model = Sequential()
-    model.add(restnet)
-    model.add(Dense(512, activation='relu', input_dim=(250, 700, 3)))
-    model.add(Dropout(0.3))
+    model.add(resnet)
     model.add(Dense(512, activation='relu'))
+    model.add(Dropout(0.3))
+    model.add(Dense(256, activation='relu'))
     model.add(Dropout(0.3))
     model.add(Dense(1, activation='sigmoid'))
     model.compile(loss='binary_crossentropy',
-                  optimizer=optimizers.RMSprop(learning_rate=2e-5),
+                  optimizer=optimizers.RMSprop(learning_rate=0.0001),
                   metrics=['binary_accuracy'])
 
-    print(model.predict(np.asarray([test_set[17]])))
-    print(model.predict(np.asarray([test_set[2]])))
-    print(model.predict(np.asarray([test_set[8]])))
-    print(model.predict(np.asarray([test_set[11]])))
-    print(model.predict(np.asarray([test_set[28]])))
+    print(model.predict(np.asarray([train_set[17]])))
+    print(model.predict(np.asarray([train_set[2]])))
+    print(model.predict(np.asarray([train_set[8]])))
+    print(model.predict(np.asarray([train_set[11]])))
+    print(model.predict(np.asarray([train_set[28]])))
 
 
 def test_resnet():
@@ -315,8 +311,9 @@ def main():
     #         # Visible devices must be set before GPUs have been initialized
     #         print(e)
 
-    # create_resnet_weights(os.getcwd() + "/spectrograms/coswara")
-    test_resnet()
+    create_test_val(os.getcwd() + "/spectrograms/coswara")
+    plt.close('all')
+    # test_resnet()
 
 
 if __name__ == "__main__":
