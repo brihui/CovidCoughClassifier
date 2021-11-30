@@ -135,6 +135,54 @@ def create_test_val(spectro_path):
     # resnet_prediction(train_set, test_set, train_label, test_label)
 
 
+def use_test_data(path):
+    """
+    Given an absolute path to test spectrograms, call resnet predict.
+    :param path: String with path to spectrograms
+    """
+
+    root_directory = os.getcwd()
+
+    os.chdir(path)
+    test_spectrograms = [file for file in os.listdir()]
+    test_images = []
+    test_labels = []
+
+    positives = 0
+    negatives = 0
+    count = 0
+
+    for img in test_spectrograms:
+        if img == ".DS_Store":
+            pass
+        else:
+            if img[0] == '0' and negatives < int(size * 0.5):
+                negatives += 1
+                test_labels.append(int(img[0]))
+                image_data = image.imread(img)
+                image_data = resize(image_data, output_shape=(166, 466, 3))
+                test_images.append(image_data)
+                count += 1
+            elif img[0] == '1' and positives < int(size * 0.5):
+                positives += 1
+                test_labels.append(int(img[0]))
+                image_data = image.imread(img)
+                image_data = resize(image_data, output_shape=(166, 466, 3))
+                test_images.append(image_data)
+                count += 1
+        if count > size:
+            break
+
+    test_images = np.array(test_images)
+
+    test_images_scaled = test_images.astype('float32')
+    test_images_scaled /= 255
+
+    os.chdir(root_directory)
+
+    resnet_prediction(test_images_scaled, test_labels)
+
+
 def lenet_5(train_set, train_label, test_set, test_label):
     lenet_5 = models.Sequential([
         # Not grayscale like lenet-5
@@ -345,8 +393,8 @@ def main():
     for gpu in gpus:
         tf.config.experimental.set_memory_growth(gpu, True)
 
-    create_test_val(os.getcwd() + "/spectrograms/coswara")
-    plt.close('all')
+    # create_test_val(os.getcwd() + "/spectrograms/coswara")
+    use_test_data(os.getcwd() + "/spectrograms/coughvid")
     # test_resnet()
 
 
