@@ -1,5 +1,6 @@
 import os
 import numpy as np
+from sklearn.metrics import accuracy_score, f1_score
 from tensorflow.keras import layers, models, optimizers, datasets
 import tensorflow as tf
 from keras.applications.resnet import ResNet50
