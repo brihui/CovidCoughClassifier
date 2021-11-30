@@ -1,6 +1,5 @@
 import os
 import numpy as np
-from keras.layers import LSTM
 from tensorflow.keras import layers, models, optimizers, datasets
 import tensorflow as tf
 from keras.applications.resnet import ResNet50
@@ -18,6 +17,7 @@ size = 100
 IMG_WIDTH = 1400
 IMG_HEIGHT = 500
 IMG_DIM = (IMG_HEIGHT, IMG_WIDTH)
+HALF_IMG_DIM = tuple(int(ti / 3) for ti in IMG_DIM)
 
 
 def create_test_val(spectro_path):
@@ -36,7 +36,6 @@ def create_test_val(spectro_path):
     # train_imgs = [image.imread(img) for img in train_spectrograms if img != ".DS_Store"]
     count = 0
     train_imgs = []
-    HALF_IMG_DIM = tuple(int(ti / 3) for ti in IMG_DIM)
     positives = 0
     negatives = 0
     count = 0
@@ -46,14 +45,14 @@ def create_test_val(spectro_path):
         if img == ".DS_Store":
             pass
         else:
-            if img[0] == '0' and negatives < int(size * 0.5):
+            if img[0] == '0' and negatives < int(size * 0.7):
                 negatives += 1
                 train_labels.append(int(img[0]))
                 image_data = image.imread(img)
                 image_data = resize(image_data, output_shape=HALF_IMG_DIM)
                 train_imgs.append(image_data)
                 count += 1
-            elif img[0] == '1' and positives < int(size * 0.5):
+            elif img[0] == '1' and positives < int(size * 0.3):
                 positives += 1
                 train_labels.append(int(img[0]))
                 image_data = image.imread(img)
@@ -211,7 +210,7 @@ def custom_cnn(train_set, test_set, train_label, test_label):
 def resnet_weights(train_set, test_set, train_label, test_label):
     resnet_model = Sequential()
 
-    pretrained_model = ResNet50(include_top=False, input_shape=(166, 466, 3), weights='imagenet')
+    pretrained_model = ResNet50(include_top=False, input_shape=(125, 350, 3), weights='imagenet')
 
     output = pretrained_model.layers[-1].output
     output = Flatten()(output)
@@ -264,23 +263,24 @@ def resnet_weights(train_set, test_set, train_label, test_label):
     print(resnet_model.predict(np.asarray([test_set[28]])))
 
 
-def resnet_prediction(train_set, test_set, train_label, test_label):
-    path = os.getcwd() + "/coswara_cnn_model.h5"
+def resnet_prediction(test_data, test_labels):
+    path = os.getcwd() + "/coswara_resnet_model.h5"
     print(path)
-    resnet = ResNet50(include_top=False, input_shape=(250, 700, 3))
+    print(test_data[0].shape)
+    resnet = ResNet50(include_top=False, input_shape=(166, 466, 3))
     resnet.load_weights(path, by_name=True)
 
-    output = resnet.layers[-1].output
-    output = layers.Flatten()(output)
-    resnet = Model(resnet.input, outputs=output)
+    # output = resnet.layers[-1].output
+    # output = layers.Flatten()(output)
+    # resnet = Model(resnet.input, outputs=output)
+    # for layer in resnet.layers:
+    #     layer.trainable = False
 
-    for layer in resnet.layers:
-        layer.trainable = False
-
-    # restnet.summary()
+    # resnet.summary()
 
     model = Sequential()
     model.add(resnet)
+    model.add(Flatten())
     model.add(Dense(512, activation='relu'))
     model.add(Dropout(0.3))
     model.add(Dense(256, activation='relu'))
@@ -290,11 +290,20 @@ def resnet_prediction(train_set, test_set, train_label, test_label):
                   optimizer=optimizers.RMSprop(learning_rate=0.0001),
                   metrics=['binary_accuracy'])
 
-    print(model.predict(np.asarray([train_set[17]])))
-    print(model.predict(np.asarray([train_set[2]])))
-    print(model.predict(np.asarray([train_set[8]])))
-    print(model.predict(np.asarray([train_set[11]])))
-    print(model.predict(np.asarray([train_set[28]])))
+    model.summary()
+
+    prediction = [model.predict(np.asarray([sample])) for sample in test_data]
+    prediction_binary = np.argmax(prediction, axis=1)
+    prediction_binary = prediction_binary[:, 0]
+
+    print(prediction_binary)
+    print(prediction_binary.shape)
+
+    accuracy = accuracy_score(test_labels, prediction_binary)
+    f1 = f1_score(test_labels, prediction_binary)
+
+    print('Accuracy: ', accuracy)
+    print('F1 score: ', f1)
 
 
 def test_resnet():
@@ -335,7 +344,7 @@ def main():
     for gpu in gpus:
         tf.config.experimental.set_memory_growth(gpu, True)
 
-    create_test_val(os.getcwd() + "/spectrograms/coughvid")
+    create_test_val(os.getcwd() + "/spectrograms/coswara")
     plt.close('all')
     # test_resnet()
 
