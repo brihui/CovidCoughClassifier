@@ -14,11 +14,12 @@ from matplotlib import pyplot as plt
 from matplotlib import image
 from sklearn.model_selection import train_test_split
 
-size = 2011
+
+size = 100
 IMG_WIDTH = 1400
 IMG_HEIGHT = 500
 IMG_DIM = (IMG_HEIGHT, IMG_WIDTH)
-HALF_IMG_DIM = tuple(int(ti / 6) for ti in IMG_DIM)
+HALF_IMG_DIM = tuple(int(ti / 3) for ti in IMG_DIM)
 
 
 def create_test_val(spectro_path):
@@ -158,20 +159,22 @@ def use_test_data(path):
         if img == ".DS_Store":
             pass
         else:
-            if img[0] == '0':
+            if img[0] == '0' and negatives < int(size * 0.5):
                 negatives += 1
                 test_labels.append(int(img[0]))
                 image_data = image.imread(img)
                 image_data = resize(image_data, output_shape=(166, 466, 3))
                 test_images.append(image_data)
                 count += 1
-            elif img[0] == '1':
+            elif img[0] == '1' and positives < int(size * 0.5):
                 positives += 1
                 test_labels.append(int(img[0]))
                 image_data = image.imread(img)
                 image_data = resize(image_data, output_shape=(166, 466, 3))
                 test_images.append(image_data)
                 count += 1
+        if count > size:
+            break
 
     test_images = np.array(test_images)
 
@@ -261,7 +264,7 @@ def custom_cnn(train_set, test_set, train_label, test_label):
 def resnet_weights(train_set, test_set, train_label, test_label):
     resnet_model = Sequential()
 
-    pretrained_model = ResNet50(include_top=False, input_shape=(166, 466, 3), weights='imagenet')
+    pretrained_model = ResNet50(include_top=False, input_shape=(125, 350, 3), weights='imagenet')
 
     output = pretrained_model.layers[-1].output
     output = Flatten()(output)
@@ -298,13 +301,13 @@ def resnet_weights(train_set, test_set, train_label, test_label):
 
     print(history)
 
-    # plt.plot(history.history['acc'])
-    # plt.plot(history.history['val_acc'])
-    # plt.title('model accuracy')
-    # plt.ylabel('accuracy')
-    # plt.xlabel('epoch')
-    # plt.legend(['train', 'val'], loc='upper left')
-    # plt.show()
+    plt.plot(history.history['acc'])
+    plt.plot(history.history['val_acc'])
+    plt.title('model accuracy')
+    plt.ylabel('accuracy')
+    plt.xlabel('epoch')
+    plt.legend(['train', 'val'], loc='upper left')
+    plt.show()
 
     resnet_model.save(os.getcwd() + '/coswara_resnet_model.h5')
 
@@ -318,38 +321,41 @@ def resnet_weights(train_set, test_set, train_label, test_label):
 def resnet_prediction(test_data, test_labels):
     path = os.getcwd() + "/coswara_resnet_model.h5"
     print(path)
-    resnet = ResNet50(include_top=False, input_shape=(166, 466, 3))
-    resnet.load_weights(path, by_name=True)
 
-    # output = resnet.layers[-1].output
-    # output = layers.Flatten()(output)
-    # resnet = Model(resnet.input, outputs=output)
-    for layer in resnet.layers:
+    resnet_model = Sequential()
+
+    pretrained_model = ResNet50(include_top=False, input_shape=(166, 466, 3), weights='imagenet')
+
+    output = pretrained_model.layers[-1].output
+    output = Flatten()(output)
+    pretrained_model = Model(pretrained_model.input, outputs=output)
+
+    for layer in pretrained_model.layers:
         layer.trainable = False
 
-    # resnet.summary()
+    resnet_model.add(pretrained_model)
+    resnet_model.add(Flatten())
+    resnet_model.add(BatchNormalization())
+    resnet_model.add(Dense(256, activation='relu'))
+    resnet_model.add(Dropout(0.3))
+    resnet_model.add(BatchNormalization())
+    resnet_model.add(Dense(128, activation='relu'))
+    resnet_model.add(Dropout(0.3))
+    resnet_model.add(BatchNormalization())
+    resnet_model.add(Dense(64, activation='relu'))
+    resnet_model.add(Dropout(0.3))
+    resnet_model.add(BatchNormalization())
+    resnet_model.add(Dense(1, activation='sigmoid'))
 
-    model = Sequential()
-    model.add(resnet)
-    model.add(Flatten())
-    model.add(Dense(512, activation='relu'))
-    model.add(Dropout(0.3))
-    model.add(Dense(256, activation='relu'))
-    model.add(Dropout(0.3))
-    model.add(Dense(1, activation='sigmoid'))
-    model.compile(loss='binary_crossentropy',
-                  optimizer=optimizers.RMSprop(learning_rate=0.0001),
-                  metrics=['binary_accuracy'])
+    resnet_model.load_weights(path)
 
-    model.summary()
-
-    prediction = [model.predict(np.asarray([sample])) for sample in test_data]
+    prediction = resnet_model.predict(test_data)
     print(prediction)
-    prediction_binary = np.argmax(prediction, axis=1)
-    prediction_binary = prediction_binary[:, 0]
+    prediction = prediction[:, 0]
+    prediction_binary = [0 if pred < 0.5 else 1 for pred in prediction]
+    # prediction_binary = prediction_binary[:, 0]
 
     print(prediction_binary)
-    print(prediction_binary.shape)
 
     accuracy = accuracy_score(test_labels, prediction_binary)
     f1 = f1_score(test_labels, prediction_binary)
@@ -417,8 +423,8 @@ def main():
     for gpu in gpus:
         tf.config.experimental.set_memory_growth(gpu, True)
 
-    create_test_val(os.getcwd() + "/spectrograms/coswara")
-    # use_test_data(os.getcwd() + "/spectrograms/coughvid_test")
+    # create_test_val(os.getcwd() + "/spectrograms/coswara")
+    use_test_data(os.getcwd() + "/spectrograms/coswara")
     # test_resnet()
 
 
