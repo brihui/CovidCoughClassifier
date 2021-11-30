@@ -1,5 +1,6 @@
 import os
 import numpy as np
+from keras.layers import LSTM
 from sklearn.metrics import accuracy_score, f1_score
 from tensorflow.keras import layers, models, optimizers, datasets
 import tensorflow as tf
@@ -14,11 +15,11 @@ from matplotlib import image
 from sklearn.model_selection import train_test_split
 
 
-size = 100
+size = 2011
 IMG_WIDTH = 1400
 IMG_HEIGHT = 500
 IMG_DIM = (IMG_HEIGHT, IMG_WIDTH)
-HALF_IMG_DIM = tuple(int(ti / 3) for ti in IMG_DIM)
+HALF_IMG_DIM = tuple(int(ti / 6) for ti in IMG_DIM)
 
 
 def create_test_val(spectro_path):
@@ -94,7 +95,8 @@ def create_test_val(spectro_path):
     train_imgs_scaled = train_imgs.astype('float32')
     train_imgs_scaled /= 255
 
-    train_set, test_set, train_label, test_label = train_test_split(train_imgs_scaled, train_labels, test_size=0.3, stratify=train_labels)
+    train_set, test_set, train_label, test_label = train_test_split(train_imgs_scaled, train_labels, test_size=0.3,
+                                                                    stratify=train_labels)
     train_label = np.asarray(train_label)
     test_label = np.asarray(test_label)
     print(test_label[17])
@@ -108,8 +110,8 @@ def create_test_val(spectro_path):
     print(train_label.shape)
     print(test_label.shape)
 
-    train_label = train_label.reshape(-1,1)
-    test_label = test_label.reshape(-1,1)
+    train_label = train_label.reshape(-1, 1)
+    test_label = test_label.reshape(-1, 1)
 
     os.chdir(root_directory)
 
@@ -129,9 +131,10 @@ def create_test_val(spectro_path):
     # plt.xlabel(classes[int(train_labels[0])])
     # plt.show()
 
+    lstm_prediction(train_set, test_set, train_label, test_label)
     # lenet_5(train_set, train_label, test_set, test_label)
     # custom_cnn(train_set, test_set, train_label, test_label)
-    resnet_weights(train_set, test_set, train_label, test_label)
+    # resnet_weights(train_set, test_set, train_label, test_label)
     # resnet_prediction(train_set, test_set, train_label, test_label)
 
 
@@ -242,6 +245,8 @@ def custom_cnn(train_set, test_set, train_label, test_label):
 
     custom.fit(train_set, train_label, epochs=50, batch_size=64)
 
+    custom.save(os.getcwd() + '/coswara_resnet_model.h5')
+
     print('-' * 100)
 
     custom.evaluate(test_set, test_label)
@@ -282,7 +287,8 @@ def resnet_weights(train_set, test_set, train_label, test_label):
     resnet_model.add(BatchNormalization())
     resnet_model.add(Dense(1, activation='sigmoid'))
 
-    resnet_model.compile(optimizer=optimizers.RMSprop(learning_rate=0.00001), loss=tf.keras.losses.binary_crossentropy, metrics=['binary_accuracy'])
+    resnet_model.compile(optimizer=optimizers.RMSprop(learning_rate=0.00001), loss=tf.keras.losses.binary_crossentropy,
+                         metrics=['binary_accuracy'])
 
     resnet_model.summary()
 
@@ -303,7 +309,7 @@ def resnet_weights(train_set, test_set, train_label, test_label):
     plt.legend(['train', 'val'], loc='upper left')
     plt.show()
 
-    resnet_model.save(os.getcwd() + '/coughvid_resnet_model.h5')
+    resnet_model.save(os.getcwd() + '/coswara_resnet_model.h5')
 
     print(resnet_model.predict(np.asarray([test_set[17]])))
     print(resnet_model.predict(np.asarray([test_set[2]])))
@@ -392,7 +398,7 @@ def test_resnet():
     # plt.show()
     # plt.close('all')
 
-    # Normalize RGB values to control weights
+    # Normalize RGB values to control weight
     x_train = x_train / 255
     x_test = x_test / 255
 
@@ -404,11 +410,37 @@ def test_resnet():
 
     resnet_weights(x_train, x_test, y_train, y_test)
 
+
 def lstm_prediction(train_set, test_set, train_label, test_label):
+    train_set = np.dot(train_set[..., :3], [0.2989, 0.5870, 0.1140])
+    test_set = np.dot(test_set[..., :3], [0.2989, 0.5870, 0.1140])
+
     print('hi')
     model = Sequential()
-    model.add(LSTM(1), )
+    model.add(LSTM(50, activation='relu', input_shape=(83, 233), dropout=0.3))
+    model.add(Flatten())
+    model.add(Dense(256, activation='relu'))
+    model.add(Dropout(0.3))
+    model.add(Dense(64, activation='relu'))
+    model.add(Dropout(0.3))
+    model.add(Dense(1, activation='sigmoid'))
 
+    model.compile(optimizer=optimizers.RMSprop(learning_rate=0.0001), loss='binary_crossentropy',
+                  metrics=['binary_accuracy'])
+
+    callback = tf.keras.callbacks.EarlyStopping(monitor='loss', patience=3)
+
+    # train_set = train_set.reshape((train_set.shape[0], train_set.shape[1], 3))
+
+    model.fit(train_set, train_label, epochs=50, callbacks=[callback], validation_split=0.3)
+
+    model.evaluate(test_set, test_label)
+
+    # print(model.predict(np.asarray([test_set[17]])))
+    # print(model.predict(np.asarray([test_set[2]])))
+    # print(model.predict(np.asarray([test_set[8]])))
+    # print(model.predict(np.asarray([test_set[11]])))
+    # print(model.predict(np.asarray([test_set[28]])))
 
 
 def main():
@@ -416,9 +448,10 @@ def main():
     for gpu in gpus:
         tf.config.experimental.set_memory_growth(gpu, True)
 
-    # create_test_val(os.getcwd() + "/spectrograms/coswara")
-    use_test_data(os.getcwd() + "/spectrograms/coswara", 0.4)
+    # use_test_data(os.getcwd() + "/spectrograms/coswara", 0.4)
     # validate_threshold()
+    create_test_val(os.getcwd() + "/spectrograms/coswara")
+    # use_test_data(os.getcwd() + "/spectrograms/coswara")
     # test_resnet()
 
 
