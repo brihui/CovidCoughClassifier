@@ -335,8 +335,8 @@ def test_resnet():
 
 def lstm_prediction(train_set, test_set, train_label, test_label):
     print('hi')
-    model = Sequential()
-    model.add(LSTM(1), )
+    # model = Sequential()
+    # model.add(LSTM(1), )
 
 
 
