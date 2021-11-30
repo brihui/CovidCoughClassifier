@@ -15,11 +15,11 @@ from matplotlib import image
 from sklearn.model_selection import train_test_split
 
 
-size = 100
+size = 2011
 IMG_WIDTH = 1400
 IMG_HEIGHT = 500
 IMG_DIM = (IMG_HEIGHT, IMG_WIDTH)
-HALF_IMG_DIM = tuple(int(ti / 3) for ti in IMG_DIM)
+HALF_IMG_DIM = tuple(int(ti / 6) for ti in IMG_DIM)
 
 
 def create_test_val(spectro_path):
@@ -398,6 +398,11 @@ def lstm_prediction(train_set, test_set, train_label, test_label):
     print('hi')
     model = Sequential()
     model.add(LSTM(50, activation='relu', input_shape=(83, 233), dropout=0.3))
+    model.add(Flatten())
+    model.add(Dense(256, activation='relu'))
+    model.add(Dropout(0.3))
+    model.add(Dense(64, activation='relu'))
+    model.add(Dropout(0.3))
     model.add(Dense(1, activation='sigmoid'))
 
     model.compile(optimizer=optimizers.RMSprop(learning_rate=0.0001), loss='binary_crossentropy',
@@ -407,7 +412,7 @@ def lstm_prediction(train_set, test_set, train_label, test_label):
 
     # train_set = train_set.reshape((train_set.shape[0], train_set.shape[1], 3))
 
-    model.fit(train_set, train_label, epochs=50, callbacks=[callback])
+    model.fit(train_set, train_label, epochs=50, callbacks=[callback], validation_split=0.3)
 
     model.evaluate(test_set, test_label)
 
@@ -423,8 +428,8 @@ def main():
     for gpu in gpus:
         tf.config.experimental.set_memory_growth(gpu, True)
 
-    # create_test_val(os.getcwd() + "/spectrograms/coswara")
-    use_test_data(os.getcwd() + "/spectrograms/coswara")
+    create_test_val(os.getcwd() + "/spectrograms/coswara")
+    # use_test_data(os.getcwd() + "/spectrograms/coswara")
     # test_resnet()
 
 
