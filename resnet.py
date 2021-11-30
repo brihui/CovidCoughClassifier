@@ -135,7 +135,7 @@ def create_test_val(spectro_path):
     # resnet_prediction(train_set, test_set, train_label, test_label)
 
 
-def use_test_data(path):
+def use_test_data(path, threshold):
     """
     Given an absolute path to test spectrograms, call resnet predict.
     :param path: String with path to spectrograms
@@ -180,7 +180,7 @@ def use_test_data(path):
 
     os.chdir(root_directory)
 
-    resnet_prediction(test_images_scaled, test_labels)
+    return resnet_prediction(test_images_scaled, test_labels, threshold)
 
 
 def lenet_5(train_set, train_label, test_set, test_label):
@@ -312,9 +312,8 @@ def resnet_weights(train_set, test_set, train_label, test_label):
     print(resnet_model.predict(np.asarray([test_set[28]])))
 
 
-def resnet_prediction(test_data, test_labels):
+def resnet_prediction(test_data, test_labels, threshold):
     path = os.getcwd() + "/coswara_resnet_model.h5"
-    print(path)
 
     resnet_model = Sequential()
 
@@ -344,18 +343,39 @@ def resnet_prediction(test_data, test_labels):
     resnet_model.load_weights(path)
 
     prediction = resnet_model.predict(test_data)
-    print(prediction)
+    # print(prediction)
     prediction = prediction[:, 0]
-    prediction_binary = [0 if pred < 0.5 else 1 for pred in prediction]
+    prediction_binary = [0 if pred < threshold else 1 for pred in prediction]
     # prediction_binary = prediction_binary[:, 0]
 
-    print(prediction_binary)
+    # print(prediction_binary)
 
     accuracy = accuracy_score(test_labels, prediction_binary)
     f1 = f1_score(test_labels, prediction_binary)
 
+    print('Classification Threshold ', threshold)
     print('Accuracy: ', accuracy)
     print('F1 score: ', f1)
+    return accuracy, f1
+
+
+def validate_threshold():
+    thresholds = [0.2, 0.25, 0.3, 0.35, 0.4]
+    threshold_labels = ['0.2', '0.25', '0.3', '0.35', '0.4']
+    accuracy_scores = []
+    f1_scores = []
+    for threshold in thresholds:
+        accuracy, f1 = use_test_data(os.getcwd() + "/spectrograms/coswara", threshold)
+        accuracy_scores.append(accuracy)
+        f1_scores.append(f1)
+
+    plt.plot(threshold_labels, accuracy_scores, label='Accuracy Scores')
+    plt.plot(threshold_labels, f1_scores, label='F1 Scores')
+    plt.title('Resnet Accuracy and F1 Score at different thresholds')
+    plt.xlabel('Thresholds')
+    plt.ylabel('Score')
+    plt.legend(loc='lower right')
+    plt.show()
 
 
 def test_resnet():
@@ -397,7 +417,8 @@ def main():
         tf.config.experimental.set_memory_growth(gpu, True)
 
     # create_test_val(os.getcwd() + "/spectrograms/coswara")
-    use_test_data(os.getcwd() + "/spectrograms/coswara")
+    use_test_data(os.getcwd() + "/spectrograms/coswara", 0.4)
+    # validate_threshold()
     # test_resnet()
 
 
