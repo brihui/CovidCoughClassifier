@@ -1,5 +1,6 @@
 import os
 import numpy as np
+from keras.layers import LSTM
 from tensorflow.keras import layers, models, optimizers, datasets
 import tensorflow as tf
 from keras.applications.resnet import ResNet50
@@ -35,7 +36,7 @@ def create_test_val(spectro_path):
     # train_imgs = [image.imread(img) for img in train_spectrograms if img != ".DS_Store"]
     count = 0
     train_imgs = []
-    HALF_IMG_DIM = tuple(int(ti / 4) for ti in IMG_DIM)
+    HALF_IMG_DIM = tuple(int(ti / 3) for ti in IMG_DIM)
     positives = 0
     negatives = 0
     count = 0
@@ -45,14 +46,14 @@ def create_test_val(spectro_path):
         if img == ".DS_Store":
             pass
         else:
-            if img[0] == '0' and negatives < int(size * 0.7):
+            if img[0] == '0' and negatives < int(size * 0.5):
                 negatives += 1
                 train_labels.append(int(img[0]))
                 image_data = image.imread(img)
                 image_data = resize(image_data, output_shape=HALF_IMG_DIM)
                 train_imgs.append(image_data)
                 count += 1
-            elif img[0] == '1' and positives < int(size * 0.3):
+            elif img[0] == '1' and positives < int(size * 0.5):
                 positives += 1
                 train_labels.append(int(img[0]))
                 image_data = image.imread(img)
@@ -129,7 +130,7 @@ def create_test_val(spectro_path):
     # plt.show()
 
     # lenet_5(train_set, train_label, test_set, test_label)
-    # custom_cnn(train_set, train_label, test_set, test_label)
+    # custom_cnn(train_set, test_set, train_label, test_label)
     resnet_weights(train_set, test_set, train_label, test_label)
     # resnet_prediction(train_set, test_set, train_label, test_label)
 
@@ -137,7 +138,7 @@ def create_test_val(spectro_path):
 def lenet_5(train_set, train_label, test_set, test_label):
     lenet_5 = models.Sequential([
         # Not grayscale like lenet-5
-        layers.Conv2D(6, (5, 5), strides=1, activation='relu', input_shape=(250, 700, 3)),
+        layers.Conv2D(6, (5, 5), strides=1, activation='relu', input_shape=(166, 466, 3)),
         layers.AvgPool2D((2, 2), strides=2),
         layers.Conv2D(16, (5, 5), strides=1, activation='relu'),
         layers.AvgPool2D((2, 2), strides=2),
@@ -151,7 +152,7 @@ def lenet_5(train_set, train_label, test_set, test_label):
     # Sparse because we are using index rather than flat matrix for class representation
     lenet_5.compile(optimizer='adam', loss=tf.keras.losses.binary_crossentropy, metrics=['binary_accuracy'])
 
-    lenet_5.fit(train_set, train_label, epochs=1)
+    lenet_5.fit(train_set, train_label, epochs=10, batch_size=64)
 
     print('-' * 100)
 
@@ -163,7 +164,7 @@ def lenet_5(train_set, train_label, test_set, test_label):
     print(lenet_5.predict(np.asarray([test_set[28]])))
 
 
-def custom_cnn(train_set, train_label, test_set, test_label):
+def custom_cnn(train_set, test_set, train_label, test_label):
     custom = models.Sequential([
         # Repeated convolutional layers increase receptive field
         layers.Conv2D(16, (3, 3), activation='relu', input_shape=(83, 233, 3)),
@@ -186,13 +187,19 @@ def custom_cnn(train_set, train_label, test_set, test_label):
         layers.Dense(1, activation='sigmoid')
     ])
 
-    custom.compile(optimizer=optimizers.RMSprop(learning_rate=0.0001), loss=tf.keras.losses.binary_crossentropy, metrics=['binary_accuracy'])
+    # callback = tf.keras.callbacks.EarlyStopping(monitor='loss', patience=3)
 
-    custom.fit(train_set, train_label, epochs=10)
+    custom.compile(optimizer=optimizers.RMSprop(learning_rate=0.0001), loss=tf.keras.losses.binary_crossentropy,
+                   metrics=['binary_accuracy'])
+
+    custom.fit(train_set, train_label, epochs=50, batch_size=64)
 
     print('-' * 100)
 
     custom.evaluate(test_set, test_label)
+
+    pred = custom.predict(test_set)
+    print(pred)
 
     print(custom.predict(np.asarray([test_set[17]])))
     print(custom.predict(np.asarray([test_set[2]])))
@@ -204,7 +211,12 @@ def custom_cnn(train_set, train_label, test_set, test_label):
 def resnet_weights(train_set, test_set, train_label, test_label):
     resnet_model = Sequential()
 
-    pretrained_model = ResNet50(include_top=False, input_shape=(125, 350, 3), weights='imagenet')
+    pretrained_model = ResNet50(include_top=False, input_shape=(166, 466, 3), weights='imagenet')
+
+    output = pretrained_model.layers[-1].output
+    output = Flatten()(output)
+    pretrained_model = Model(pretrained_model.input, outputs=output)
+
     for layer in pretrained_model.layers:
         layer.trainable = False
 
@@ -226,11 +238,24 @@ def resnet_weights(train_set, test_set, train_label, test_label):
 
     resnet_model.summary()
 
+    callback = tf.keras.callbacks.EarlyStopping(monitor='loss', patience=3)
+
     print('-' * 100)
 
-    history = resnet_model.fit(train_set, train_label, epochs=10, validation_data=(test_set, test_label))
+    history = resnet_model.fit(train_set, train_label, epochs=100, batch_size=64,
+                               validation_split=0.3, callbacks=[callback])
 
-    resnet_model.save(os.getcwd() + '/coswara_resnet_model.h5')
+    print(history)
+
+    plt.plot(history.history['acc'])
+    plt.plot(history.history['val_acc'])
+    plt.title('model accuracy')
+    plt.ylabel('accuracy')
+    plt.xlabel('epoch')
+    plt.legend(['train', 'val'], loc='upper left')
+    plt.show()
+
+    resnet_model.save(os.getcwd() + '/coughvid_resnet_model.h5')
 
     print(resnet_model.predict(np.asarray([test_set[17]])))
     print(resnet_model.predict(np.asarray([test_set[2]])))
@@ -242,12 +267,13 @@ def resnet_weights(train_set, test_set, train_label, test_label):
 def resnet_prediction(train_set, test_set, train_label, test_label):
     path = os.getcwd() + "/coswara_cnn_model.h5"
     print(path)
-    resnet = ResNet50(include_top=False, input_shape=(125, 350, 3))
+    resnet = ResNet50(include_top=False, input_shape=(250, 700, 3))
     resnet.load_weights(path, by_name=True)
 
     output = resnet.layers[-1].output
     output = layers.Flatten()(output)
     resnet = Model(resnet.input, outputs=output)
+
     for layer in resnet.layers:
         layer.trainable = False
 
@@ -297,21 +323,19 @@ def test_resnet():
 
     resnet_weights(x_train, x_test, y_train, y_test)
 
+def lstm_prediction(train_set, test_set, train_label, test_label):
+    print('hi')
+    model = Sequential()
+    model.add(LSTM(1), )
+
+
 
 def main():
-    # gpus = tf.config.list_physical_devices('GPU')
-    # if gpus:
-    #     try:
-    #         for gpu in gpus:
-    #             tf.config.experimental.set_memory_growth(gpu, True)
-    #         tf.config.set_visible_devices(gpus[0], 'GPU')
-    #         logical_gpus = tf.config.list_logical_devices('GPU')
-    #         print(len(gpus), "Physical GPUs,", len(logical_gpus), "Logical GPU")
-    #     except RuntimeError as e:
-    #         # Visible devices must be set before GPUs have been initialized
-    #         print(e)
+    gpus = tf.config.experimental.list_physical_devices('GPU')
+    for gpu in gpus:
+        tf.config.experimental.set_memory_growth(gpu, True)
 
-    create_test_val(os.getcwd() + "/spectrograms/coswara")
+    create_test_val(os.getcwd() + "/spectrograms/coughvid")
     plt.close('all')
     # test_resnet()
 
