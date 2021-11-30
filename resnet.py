@@ -269,7 +269,7 @@ def custom_cnn(train_set, test_set, train_label, test_label):
     print(custom.predict(np.asarray([test_set[11]])))
     print(custom.predict(np.asarray([test_set[28]])))
 
-
+##
 def resnet_weights(train_set, test_set, train_label, test_label):
     resnet_model = Sequential()
 
