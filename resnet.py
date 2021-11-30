@@ -10,7 +10,7 @@ from tensorflow.keras.layers import Conv2D, MaxPooling2D, Flatten, Dense, Dropou
 from skimage.transform import resize
 from tensorflow.keras.models import Sequential
 from tensorflow.keras import optimizers
-from matplotlib import pyplot as plt
+from matplotlib import pyplot as plt, pyplot
 from matplotlib import image
 from sklearn.model_selection import train_test_split
 
@@ -131,9 +131,9 @@ def create_test_val(spectro_path):
     # plt.xlabel(classes[int(train_labels[0])])
     # plt.show()
 
-    lstm_prediction(train_set, test_set, train_label, test_label)
+    # lstm_prediction(train_set, test_set, train_label, test_label)
     # lenet_5(train_set, train_label, test_set, test_label)
-    # custom_cnn(train_set, test_set, train_label, test_label)
+    custom_cnn(train_set, test_set, train_label, test_label)
     # resnet_weights(train_set, test_set, train_label, test_label)
     # resnet_prediction(train_set, test_set, train_label, test_label)
 
@@ -163,14 +163,14 @@ def use_test_data(path):
                 negatives += 1
                 test_labels.append(int(img[0]))
                 image_data = image.imread(img)
-                image_data = resize(image_data, output_shape=(166, 466, 3))
+                image_data = resize(image_data, output_shape=(83, 233, 3))
                 test_images.append(image_data)
                 count += 1
             elif img[0] == '1' and positives < int(size * 0.5):
                 positives += 1
                 test_labels.append(int(img[0]))
                 image_data = image.imread(img)
-                image_data = resize(image_data, output_shape=(166, 466, 3))
+                image_data = resize(image_data, output_shape=(83, 233, 3))
                 test_images.append(image_data)
                 count += 1
         if count > size:
@@ -183,7 +183,9 @@ def use_test_data(path):
 
     os.chdir(root_directory)
 
-    resnet_prediction(test_images_scaled, test_labels)
+    # resnet_prediction(test_images_scaled, test_labels)
+    # lstm_testing(test_images_scaled, test_labels)
+    cnn_testing(test_images_scaled, test_labels)
 
 
 def lenet_5(train_set, train_label, test_set, test_label):
@@ -222,13 +224,11 @@ def custom_cnn(train_set, test_set, train_label, test_label):
         layers.Dropout(0.3),
         layers.Conv2D(32, (3, 3), activation='relu'),
         layers.Dropout(0.3),
-        layers.BatchNormalization(),
         layers.MaxPool2D((2, 2)),
         layers.Conv2D(64, (3, 3), activation='relu'),
         layers.Dropout(0.3),
         layers.Conv2D(256, (3, 3), activation='relu'),
         layers.Dropout(0.3),
-        layers.BatchNormalization(),
         layers.MaxPool2D((2, 2)),
         layers.Flatten(),
         # Multiple dense layers to refine classification voting
@@ -238,14 +238,22 @@ def custom_cnn(train_set, test_set, train_label, test_label):
         layers.Dense(1, activation='sigmoid')
     ])
 
-    # callback = tf.keras.callbacks.EarlyStopping(monitor='loss', patience=3)
+    callback = tf.keras.callbacks.EarlyStopping(monitor='loss', patience=3)
 
-    custom.compile(optimizer=optimizers.RMSprop(learning_rate=0.0001), loss=tf.keras.losses.binary_crossentropy,
+    custom.compile(optimizer=optimizers.RMSprop(learning_rate=0.00001), loss=tf.keras.losses.binary_crossentropy,
                    metrics=['binary_accuracy'])
 
-    custom.fit(train_set, train_label, epochs=50, batch_size=64)
+    history = custom.fit(train_set, train_label, epochs=50, batch_size=64, callbacks=[callback], validation_split=0.3)
 
-    custom.save(os.getcwd() + '/coswara_resnet_model.h5')
+    pyplot.plot(history.history['loss'])
+    pyplot.plot(history.history['val_loss'])
+    pyplot.title('model train vs validation loss')
+    pyplot.ylabel('loss')
+    pyplot.xlabel('epoch')
+    pyplot.legend(['train', 'validation'], loc='upper right')
+    pyplot.show()
+
+    custom.save(os.getcwd() + '/coswara_custom_model.h5')
 
     print('-' * 100)
 
@@ -264,7 +272,7 @@ def custom_cnn(train_set, test_set, train_label, test_label):
 def resnet_weights(train_set, test_set, train_label, test_label):
     resnet_model = Sequential()
 
-    pretrained_model = ResNet50(include_top=False, input_shape=(125, 350, 3), weights='imagenet')
+    pretrained_model = ResNet50(include_top=False, input_shape=(166, 466, 3), weights='imagenet')
 
     output = pretrained_model.layers[-1].output
     output = Flatten()(output)
@@ -296,18 +304,17 @@ def resnet_weights(train_set, test_set, train_label, test_label):
 
     print('-' * 100)
 
-    history = resnet_model.fit(train_set, train_label, epochs=100, batch_size=64,
-                               validation_split=0.3, callbacks=[callback])
+    history = resnet_model.fit(train_set, train_label, epochs=100, batch_size=64, callbacks=[callback])
 
     print(history)
 
-    plt.plot(history.history['acc'])
-    plt.plot(history.history['val_acc'])
-    plt.title('model accuracy')
-    plt.ylabel('accuracy')
-    plt.xlabel('epoch')
-    plt.legend(['train', 'val'], loc='upper left')
-    plt.show()
+    # plt.plot(history.history['acc'])
+    # plt.plot(history.history['val_acc'])
+    # plt.title('model accuracy')
+    # plt.ylabel('accuracy')
+    # plt.xlabel('epoch')
+    # plt.legend(['train', 'val'], loc='upper left')
+    # plt.show()
 
     resnet_model.save(os.getcwd() + '/coswara_resnet_model.h5')
 
@@ -364,6 +371,77 @@ def resnet_prediction(test_data, test_labels):
     print('F1 score: ', f1)
 
 
+def cnn_testing(test_data, test_labels):
+    path = os.getcwd() + "/coswara_custom_model.h5"
+    print(path)
+
+    custom = models.Sequential([
+        # Repeated convolutional layers increase receptive field
+        layers.Conv2D(16, (3, 3), activation='relu', input_shape=(83, 233, 3)),
+        layers.Dropout(0.3),
+        layers.Conv2D(32, (3, 3), activation='relu'),
+        layers.Dropout(0.3),
+        layers.MaxPool2D((2, 2)),
+        layers.Conv2D(64, (3, 3), activation='relu'),
+        layers.Dropout(0.3),
+        layers.Conv2D(256, (3, 3), activation='relu'),
+        layers.Dropout(0.3),
+        layers.MaxPool2D((2, 2)),
+        layers.Flatten(),
+        # Multiple dense layers to refine classification voting
+        layers.Dense(512, activation='relu'),
+        layers.Dense(128, activation='relu'),
+        # Softmax probability function
+        layers.Dense(1, activation='sigmoid')
+    ])
+
+    custom.load_weights(path)
+
+    prediction = custom.predict(test_data)
+    print(prediction)
+    prediction = prediction[:, 0]
+    prediction_binary = [0 if pred < 0.5 else 1 for pred in prediction]
+    # prediction_binary = prediction_binary[:, 0]
+
+    print(prediction_binary)
+
+    accuracy = accuracy_score(test_labels, prediction_binary)
+    f1 = f1_score(test_labels, prediction_binary)
+
+    print('Accuracy: ', accuracy)
+    print('F1 score: ', f1)
+
+
+def lstm_testing(test_data, test_labels):
+    path = os.getcwd() + "/coswara_lstm_model.h5"
+    print(path)
+
+    test_data = np.dot(test_data[..., :3], [0.2989, 0.5870, 0.1140])
+
+    model = Sequential()
+    model.add(LSTM(10, activation='relu', input_shape=(83, 233), dropout=0.3))
+    model.add(Flatten())
+    model.add(Dense(256, activation='relu'))
+    model.add(Dense(64, activation='relu'))
+    model.add(Dense(1, activation='sigmoid'))
+
+    model.load_weights(path)
+
+    prediction = model.predict(test_data)
+    print(prediction)
+    prediction = prediction[:, 0]
+    prediction_binary = [0 if pred < 0.5 else 1 for pred in prediction]
+    # prediction_binary = prediction_binary[:, 0]
+
+    print(prediction_binary)
+
+    accuracy = accuracy_score(test_labels, prediction_binary)
+    f1 = f1_score(test_labels, prediction_binary)
+
+    print('Accuracy: ', accuracy)
+    print('F1 score: ', f1)
+
+
 def test_resnet():
     classes = ["airplane", "automobile", "bird", "cat", "deer", "dog", "frog", "horse", "ship", "truck"]
 
@@ -395,14 +473,11 @@ def lstm_prediction(train_set, test_set, train_label, test_label):
     train_set = np.dot(train_set[..., :3], [0.2989, 0.5870, 0.1140])
     test_set = np.dot(test_set[..., :3], [0.2989, 0.5870, 0.1140])
 
-    print('hi')
     model = Sequential()
-    model.add(LSTM(50, activation='relu', input_shape=(83, 233), dropout=0.3))
+    model.add(LSTM(10, activation='relu', dropout=0.3, input_shape=(83, 233)))
     model.add(Flatten())
     model.add(Dense(256, activation='relu'))
-    model.add(Dropout(0.3))
     model.add(Dense(64, activation='relu'))
-    model.add(Dropout(0.3))
     model.add(Dense(1, activation='sigmoid'))
 
     model.compile(optimizer=optimizers.RMSprop(learning_rate=0.0001), loss='binary_crossentropy',
@@ -412,9 +487,19 @@ def lstm_prediction(train_set, test_set, train_label, test_label):
 
     # train_set = train_set.reshape((train_set.shape[0], train_set.shape[1], 3))
 
-    model.fit(train_set, train_label, epochs=50, callbacks=[callback], validation_split=0.3)
+    history = model.fit(train_set, train_label, epochs=50, callbacks=[callback], validation_split=0.3)
+
+    pyplot.plot(history.history['loss'])
+    pyplot.plot(history.history['val_loss'])
+    pyplot.title('model train vs validation loss')
+    pyplot.ylabel('loss')
+    pyplot.xlabel('epoch')
+    pyplot.legend(['train', 'validation'], loc='upper right')
+    pyplot.show()
 
     model.evaluate(test_set, test_label)
+
+    model.save(os.getcwd() + '/coswara_lstm_model.h5')
 
     # print(model.predict(np.asarray([test_set[17]])))
     # print(model.predict(np.asarray([test_set[2]])))
@@ -429,7 +514,7 @@ def main():
         tf.config.experimental.set_memory_growth(gpu, True)
 
     create_test_val(os.getcwd() + "/spectrograms/coswara")
-    # use_test_data(os.getcwd() + "/spectrograms/coswara")
+    use_test_data(os.getcwd() + "/spectrograms/coughvid_test")
     # test_resnet()
 
 
