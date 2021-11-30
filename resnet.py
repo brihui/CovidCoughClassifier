@@ -315,38 +315,41 @@ def resnet_weights(train_set, test_set, train_label, test_label):
 def resnet_prediction(test_data, test_labels):
     path = os.getcwd() + "/coswara_resnet_model.h5"
     print(path)
-    resnet = ResNet50(include_top=False, input_shape=(166, 466, 3))
-    resnet.load_weights(path, by_name=True)
 
-    # output = resnet.layers[-1].output
-    # output = layers.Flatten()(output)
-    # resnet = Model(resnet.input, outputs=output)
-    for layer in resnet.layers:
+    resnet_model = Sequential()
+
+    pretrained_model = ResNet50(include_top=False, input_shape=(166, 466, 3), weights='imagenet')
+
+    output = pretrained_model.layers[-1].output
+    output = Flatten()(output)
+    pretrained_model = Model(pretrained_model.input, outputs=output)
+
+    for layer in pretrained_model.layers:
         layer.trainable = False
 
-    # resnet.summary()
+    resnet_model.add(pretrained_model)
+    resnet_model.add(Flatten())
+    resnet_model.add(BatchNormalization())
+    resnet_model.add(Dense(256, activation='relu'))
+    resnet_model.add(Dropout(0.3))
+    resnet_model.add(BatchNormalization())
+    resnet_model.add(Dense(128, activation='relu'))
+    resnet_model.add(Dropout(0.3))
+    resnet_model.add(BatchNormalization())
+    resnet_model.add(Dense(64, activation='relu'))
+    resnet_model.add(Dropout(0.3))
+    resnet_model.add(BatchNormalization())
+    resnet_model.add(Dense(1, activation='sigmoid'))
 
-    model = Sequential()
-    model.add(resnet)
-    model.add(Flatten())
-    model.add(Dense(512, activation='relu'))
-    model.add(Dropout(0.3))
-    model.add(Dense(256, activation='relu'))
-    model.add(Dropout(0.3))
-    model.add(Dense(1, activation='sigmoid'))
-    model.compile(loss='binary_crossentropy',
-                  optimizer=optimizers.RMSprop(learning_rate=0.0001),
-                  metrics=['binary_accuracy'])
+    resnet_model.load_weights(path)
 
-    model.summary()
-
-    prediction = [model.predict(np.asarray([sample])) for sample in test_data]
+    prediction = resnet_model.predict(test_data)
     print(prediction)
-    prediction_binary = np.argmax(prediction, axis=1)
-    prediction_binary = prediction_binary[:, 0]
+    prediction = prediction[:, 0]
+    prediction_binary = [0 if pred < 0.5 else 1 for pred in prediction]
+    # prediction_binary = prediction_binary[:, 0]
 
     print(prediction_binary)
-    print(prediction_binary.shape)
 
     accuracy = accuracy_score(test_labels, prediction_binary)
     f1 = f1_score(test_labels, prediction_binary)
@@ -394,7 +397,7 @@ def main():
         tf.config.experimental.set_memory_growth(gpu, True)
 
     # create_test_val(os.getcwd() + "/spectrograms/coswara")
-    use_test_data(os.getcwd() + "/spectrograms/coughvid")
+    use_test_data(os.getcwd() + "/spectrograms/coswara")
     # test_resnet()
 
 
