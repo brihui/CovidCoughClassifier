@@ -378,7 +378,7 @@ def test_resnet():
     # plt.show()
     # plt.close('all')
 
-    # Normalize RGB values to control weights
+    # Normalize RGB values to control weight
     x_train = x_train / 255
     x_test = x_test / 255
 
