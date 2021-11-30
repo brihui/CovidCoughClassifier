@@ -1,5 +1,6 @@
 import os
 import numpy as np
+from sklearn.metrics import f1_score, accuracy_score
 from tensorflow.keras import layers, models, optimizers, datasets
 import tensorflow as tf
 from keras.applications.resnet import ResNet50
@@ -17,6 +18,7 @@ size = 100
 IMG_WIDTH = 1400
 IMG_HEIGHT = 500
 IMG_DIM = (IMG_HEIGHT, IMG_WIDTH)
+HALF_IMG_DIM = tuple(int(ti / 3) for ti in IMG_DIM)
 
 
 def create_test_val(spectro_path):
@@ -35,7 +37,6 @@ def create_test_val(spectro_path):
     # train_imgs = [image.imread(img) for img in train_spectrograms if img != ".DS_Store"]
     count = 0
     train_imgs = []
-    HALF_IMG_DIM = tuple(int(ti / 4) for ti in IMG_DIM)
     positives = 0
     negatives = 0
     count = 0
@@ -134,6 +135,54 @@ def create_test_val(spectro_path):
     # resnet_prediction(train_set, test_set, train_label, test_label)
 
 
+def use_test_data(path):
+    """
+    Given an absolute path to test spectrograms, call resnet predict.
+    :param path: String with path to spectrograms
+    """
+
+    root_directory = os.getcwd()
+
+    os.chdir(path)
+    test_spectrograms = [file for file in os.listdir()]
+    test_images = []
+    test_labels = []
+
+    positives = 0
+    negatives = 0
+    count = 0
+
+    for img in test_spectrograms:
+        if img == ".DS_Store":
+            pass
+        else:
+            if img[0] == '0' and negatives < int(size * 0.5):
+                negatives += 1
+                test_labels.append(int(img[0]))
+                image_data = image.imread(img)
+                image_data = resize(image_data, output_shape=(166, 466, 3))
+                test_images.append(image_data)
+                count += 1
+            elif img[0] == '1' and positives < int(size * 0.5):
+                positives += 1
+                test_labels.append(int(img[0]))
+                image_data = image.imread(img)
+                image_data = resize(image_data, output_shape=(166, 466, 3))
+                test_images.append(image_data)
+                count += 1
+        if count > size:
+            break
+
+    test_images = np.array(test_images)
+
+    test_images_scaled = test_images.astype('float32')
+    test_images_scaled /= 255
+
+    os.chdir(root_directory)
+
+    resnet_prediction(test_images_scaled, test_labels)
+
+
 def lenet_5(train_set, train_label, test_set, test_label):
     lenet_5 = models.Sequential([
         # Not grayscale like lenet-5
@@ -205,6 +254,11 @@ def resnet_weights(train_set, test_set, train_label, test_label):
     resnet_model = Sequential()
 
     pretrained_model = ResNet50(include_top=False, input_shape=(125, 350, 3), weights='imagenet')
+
+    output = pretrained_model.layers[-1].output
+    output = Flatten()(output)
+    pretrained_model = Model(pretrained_model.input, outputs=output)
+
     for layer in pretrained_model.layers:
         layer.trainable = False
 
@@ -239,22 +293,24 @@ def resnet_weights(train_set, test_set, train_label, test_label):
     print(resnet_model.predict(np.asarray([test_set[28]])))
 
 
-def resnet_prediction(train_set, test_set, train_label, test_label):
-    path = os.getcwd() + "/coswara_cnn_model.h5"
+def resnet_prediction(test_data, test_labels):
+    path = os.getcwd() + "/coswara_resnet_model.h5"
     print(path)
-    resnet = ResNet50(include_top=False, input_shape=(125, 350, 3))
+    print(test_data[0].shape)
+    resnet = ResNet50(include_top=False, input_shape=(166, 466, 3))
     resnet.load_weights(path, by_name=True)
 
-    output = resnet.layers[-1].output
-    output = layers.Flatten()(output)
-    resnet = Model(resnet.input, outputs=output)
-    for layer in resnet.layers:
-        layer.trainable = False
+    # output = resnet.layers[-1].output
+    # output = layers.Flatten()(output)
+    # resnet = Model(resnet.input, outputs=output)
+    # for layer in resnet.layers:
+    #     layer.trainable = False
 
-    # restnet.summary()
+    # resnet.summary()
 
     model = Sequential()
     model.add(resnet)
+    model.add(Flatten())
     model.add(Dense(512, activation='relu'))
     model.add(Dropout(0.3))
     model.add(Dense(256, activation='relu'))
@@ -264,11 +320,20 @@ def resnet_prediction(train_set, test_set, train_label, test_label):
                   optimizer=optimizers.RMSprop(learning_rate=0.0001),
                   metrics=['binary_accuracy'])
 
-    print(model.predict(np.asarray([train_set[17]])))
-    print(model.predict(np.asarray([train_set[2]])))
-    print(model.predict(np.asarray([train_set[8]])))
-    print(model.predict(np.asarray([train_set[11]])))
-    print(model.predict(np.asarray([train_set[28]])))
+    model.summary()
+
+    prediction = [model.predict(np.asarray([sample])) for sample in test_data]
+    prediction_binary = np.argmax(prediction, axis=1)
+    prediction_binary = prediction_binary[:, 0]
+
+    print(prediction_binary)
+    print(prediction_binary.shape)
+
+    accuracy = accuracy_score(test_labels, prediction_binary)
+    f1 = f1_score(test_labels, prediction_binary)
+
+    print('Accuracy: ', accuracy)
+    print('F1 score: ', f1)
 
 
 def test_resnet():
@@ -311,9 +376,8 @@ def main():
     #         # Visible devices must be set before GPUs have been initialized
     #         print(e)
 
-    create_test_val(os.getcwd() + "/spectrograms/coswara")
-    plt.close('all')
-    # test_resnet()
+    # create_test_val(os.getcwd() + "/spectrograms/coswara")
+    use_test_data(os.getcwd() + "/spectrograms/coughvid")
 
 
 if __name__ == "__main__":
