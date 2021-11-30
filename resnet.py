@@ -267,15 +267,14 @@ def resnet_weights(train_set, test_set, train_label, test_label):
 def resnet_prediction(test_data, test_labels):
     path = os.getcwd() + "/coswara_resnet_model.h5"
     print(path)
-    print(test_data[0].shape)
     resnet = ResNet50(include_top=False, input_shape=(166, 466, 3))
     resnet.load_weights(path, by_name=True)
 
     # output = resnet.layers[-1].output
     # output = layers.Flatten()(output)
     # resnet = Model(resnet.input, outputs=output)
-    # for layer in resnet.layers:
-    #     layer.trainable = False
+    for layer in resnet.layers:
+        layer.trainable = False
 
     # resnet.summary()
 
@@ -294,6 +293,7 @@ def resnet_prediction(test_data, test_labels):
     model.summary()
 
     prediction = [model.predict(np.asarray([sample])) for sample in test_data]
+    print(prediction)
     prediction_binary = np.argmax(prediction, axis=1)
     prediction_binary = prediction_binary[:, 0]
 
